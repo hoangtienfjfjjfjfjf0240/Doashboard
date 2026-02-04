@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutTemplate, BarChart2, Target, Zap } from 'lucide-react'
+import { LayoutTemplate, Target, Zap, Users, Calendar } from 'lucide-react'
 
 interface SidebarProps {
     userRole?: string
@@ -12,8 +12,7 @@ interface SidebarProps {
 export default function Sidebar({ userRole = 'member' }: SidebarProps) {
     const pathname = usePathname()
 
-    // Show all menu items - no role restriction for now
-    // since profiles table may not be set up
+    // Show Users menu for all for now - later can restrict to admin/lead only
     const menuItems = [
         {
             title: 'Dashboard Creative',
@@ -21,14 +20,19 @@ export default function Sidebar({ userRole = 'member' }: SidebarProps) {
             icon: LayoutTemplate,
         },
         {
-            title: 'Report Efficiency',
-            path: '/reports',
-            icon: BarChart2,
+            title: 'Ngày Nghỉ',
+            path: '/day-offs',
+            icon: Calendar,
         },
         {
-            title: 'Target Settings',
+            title: 'Mục tiêu hướng tới',
             path: '/settings',
             icon: Target,
+        },
+        {
+            title: 'Quản lý Users',
+            path: '/users',
+            icon: Users,
         }
     ]
 

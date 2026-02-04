@@ -1,26 +1,14 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 
-interface AssigneeVideoTypeData {
-    name: string
-    S1: number
-    S2A: number
-    S2B: number
-    S3A: number
-    S3B: number
-    S4: number
-    S5: number
-    S6: number
-    S7?: number
-    S8?: number
-    S9A?: number
-    S9B?: number
-    S9C?: number
+interface Task {
+    video_type: string | null
+    video_count: number
 }
 
 interface VideoTypeMixChartProps {
-    data: AssigneeVideoTypeData[]
+    data: Task[]
 }
 
 const VIDEO_TYPE_COLORS: Record<string, string> = {
@@ -39,89 +27,81 @@ const VIDEO_TYPE_COLORS: Record<string, string> = {
     S9C: '#a78bfa',
 }
 
-// Get all video types that have data
-const getActiveVideoTypes = (data: AssigneeVideoTypeData[]) => {
-    const activeTypes: string[] = []
-    Object.keys(VIDEO_TYPE_COLORS).forEach(type => {
-        const hasData = data.some((d: any) => d[type] && d[type] > 0)
-        if (hasData) activeTypes.push(type)
-    })
-    return activeTypes
-}
-
 export default function VideoTypeMixChart({ data }: VideoTypeMixChartProps) {
-    const sortedData = [...data].slice(0, 8)
-    const activeVideoTypes = getActiveVideoTypes(sortedData)
+    // Group by video type and count
+    const videoTypeStats = data.reduce((acc, task) => {
+        if (!task.video_type) return acc
+        if (!acc[task.video_type]) {
+            acc[task.video_type] = { count: 0, videos: 0 }
+        }
+        acc[task.video_type].count++
+        acc[task.video_type].videos += task.video_count || 0
+        return acc
+    }, {} as Record<string, { count: number; videos: number }>)
 
-    // Get the last (top) video type for showing labels on top of stacked bars
-    const topVideoType = activeVideoTypes[activeVideoTypes.length - 1]
+    // Convert to array and sort by count
+    const chartData = Object.entries(videoTypeStats)
+        .map(([type, stats]) => ({
+            name: type,
+            count: stats.count,
+            videos: stats.videos,
+            color: VIDEO_TYPE_COLORS[type] || '#94a3b8'
+        }))
+        .sort((a, b) => b.videos - a.videos)
 
     return (
         <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 hover:border-slate-600/50 transition-all duration-300">
             <h3 className="text-lg font-semibold text-white mb-4">Phân Bổ Loại Video</h3>
             <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={sortedData}
-                        margin={{ left: 10, right: 10, bottom: 30, top: 30 }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis
-                            dataKey="name"
-                            stroke="#64748b"
-                            fontSize={11}
-                            angle={0}
-                            textAnchor="middle"
-                            height={40}
-                            axisLine={false}
-                            tickLine={false}
-                            interval={0}
-                            tickFormatter={(value) => value.length > 10 ? value.slice(0, 10) + '...' : value}
-                        />
-                        <YAxis
-                            stroke="#64748b"
-                            fontSize={11}
-                            axisLine={false}
-                            tickLine={false}
-                        />
-                        <Tooltip
-                            contentStyle={{
-                                backgroundColor: '#1e293b',
-                                border: '1px solid #475569',
-                                borderRadius: '8px',
-                                padding: '10px',
-                            }}
-                            labelStyle={{ color: '#f1f5f9', fontWeight: 600, fontSize: 12 }}
-                            itemStyle={{ fontSize: 11 }}
-                        />
-                        <Legend
-                            wrapperStyle={{ paddingTop: '10px' }}
-                            formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 10 }}>{value}</span>}
-                        />
-                        {activeVideoTypes.map((type, index) => (
-                            <Bar
-                                key={type}
-                                dataKey={type}
-                                stackId="a"
-                                fill={VIDEO_TYPE_COLORS[type]}
-                            >
-                                {/* Show label on top of each stacked bar column */}
-                                {index === activeVideoTypes.length - 1 && (
-                                    <LabelList
-                                        dataKey={(entry: any) => {
-                                            // Calculate total for this bar
-                                            return activeVideoTypes.reduce((sum, t) => sum + (entry[t] || 0), 0)
-                                        }}
-                                        position="top"
-                                        fill="#a855f7"
-                                        fontSize={11}
-                                        fontWeight={600}
-                                    />
-                                )}
+                {chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={chartData}
+                            margin={{ left: 10, right: 10, bottom: 30, top: 20 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis
+                                dataKey="name"
+                                stroke="#64748b"
+                                fontSize={11}
+                                angle={0}
+                                textAnchor="middle"
+                                height={40}
+                                axisLine={false}
+                                tickLine={false}
+                                interval={0}
+                            />
+                            <YAxis
+                                stroke="#64748b"
+                                fontSize={11}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: '#1e293b',
+                                    border: '1px solid #475569',
+                                    borderRadius: '8px',
+                                    padding: '10px',
+                                }}
+                                labelStyle={{ color: '#f1f5f9', fontWeight: 600, fontSize: 12 }}
+                                formatter={(value, name) => [
+                                    value,
+                                    name === 'videos' ? 'Videos' : 'Tasks'
+                                ]}
+                            />
+                            <Bar dataKey="videos" name="videos" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
                             </Bar>
-                        ))}
-                    </BarChart>
-                </ResponsiveContainer>
+                        </BarChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-slate-500">
+                        Chưa có dữ liệu
+                    </div>
+                )}
             </div>
         </div>
     )

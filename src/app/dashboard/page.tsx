@@ -2,21 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { startOfWeek, format, addDays, subMonths } from 'date-fns'
+import { startOfWeek, format, addDays, subMonths, subDays, getWeek } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { LogOut } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import {
     FilterBar,
     KPICards,
-    PointsChart,
-    VideosChart,
     VideoTypeMixChart,
-    WeeklyTrendChart,
     StatusDonut,
     Leaderboard,
     TaskTable,
     DueDateStats,
+    DailyPointsChart,
 } from '@/components/dashboard'
 
 interface Task {
@@ -60,8 +58,13 @@ export default function DashboardPage() {
     const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
     const [status, setStatus] = useState<'all' | 'done' | 'not_done'>('all')
     const [selectedVideoTypes, setSelectedVideoTypes] = useState<string[]>([])
-    const [timeRange, setTimeRange] = useState<'1month' | '3months' | '6months'>('1month')
-    const [filterMode, setFilterMode] = useState<'week' | 'range'>('week')
+    const [dateRange, setDateRange] = useState(() => ({
+        start: subDays(new Date(), 6),
+        end: new Date()
+    }))
+    // Lift filter state from FilterBar to prevent reset on re-render
+    const [selectedPreset, setSelectedPreset] = useState<'week' | '7days' | '14days' | '28days' | '30days' | 'custom'>('7days')
+    const [selectedWeeks, setSelectedWeeks] = useState<Set<string>>(new Set())
 
     // Data state
     const [allTasks, setAllTasks] = useState<Task[]>([])
@@ -105,10 +108,15 @@ export default function DashboardPage() {
             }
 
             const weekStartStr = format(weekStart, 'yyyy-MM-dd')
+            // Get targets for the selected date range
+            const startDateStr = format(dateRange.start, 'yyyy-MM-dd')
+            const endDateStr = format(dateRange.end, 'yyyy-MM-dd')
+
             const { data: targetsData } = await supabase
                 .from('targets')
                 .select('*')
-                .eq('week_start_date', weekStartStr)
+                .gte('week_start_date', startDateStr)
+                .lte('week_start_date', endDateStr)
 
             if (targetsData) {
                 setTargets(targetsData)
@@ -128,7 +136,7 @@ export default function DashboardPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, weekStart])
+    }, [supabase, weekStart, dateRange]) // Added dateRange dependency
 
     useEffect(() => {
         fetchData()
@@ -163,23 +171,22 @@ export default function DashboardPage() {
         router.push('/login')
     }
 
-    // Filter tasks
-    const weekEndDate = addDays(weekStart, 6)
-    const weekStartStr = format(weekStart, 'yyyy-MM-dd')
-    const weekEndStr = format(weekEndDate, 'yyyy-MM-dd')
+    // Filter tasks using dateRange
+    const dateRangeStartStr = format(dateRange.start, 'yyyy-MM-dd')
+    const dateRangeEndStr = format(dateRange.end, 'yyyy-MM-dd')
 
-    const now = new Date()
-    const getTimeRangeStart = () => {
-        switch (timeRange) {
-            case '1month': return subMonths(now, 1)
-            case '3months': return subMonths(now, 3)
-            case '6months': return subMonths(now, 6)
-        }
-    }
-    const timeRangeStart = format(getTimeRangeStart(), 'yyyy-MM-dd')
-    const timeRangeEnd = format(now, 'yyyy-MM-dd')
+    // Debug user role filtering
+    console.log('User role:', user?.role, 'fullName:', user?.fullName)
+    console.log('Assignees in data:', [...new Set(allTasks.map(t => t.assignee_name))])
 
     const baseFilteredTasks = allTasks.filter(task => {
+        // Role-based filtering: member only sees their own tasks
+        // Skip filter if fullName is empty (can't match)
+        if (user?.role === 'member' && user.fullName) {
+            const taskAssignee = (task.assignee_name || '').toLowerCase().trim()
+            const userFullName = user.fullName.toLowerCase().trim()
+            if (taskAssignee !== userFullName) return false
+        }
         if (selectedAssignees.length > 0 && !selectedAssignees.includes(task.assignee_name || '')) return false
         if (selectedVideoTypes.length > 0 && !selectedVideoTypes.includes(task.video_type || '')) return false
         if (status === 'done' && task.status !== 'done') return false
@@ -188,19 +195,11 @@ export default function DashboardPage() {
     })
 
     const displayTasks = baseFilteredTasks.filter(task => {
-        if (filterMode === 'range') {
-            if (task.status === 'done' && task.completed_at) {
-                const completedDate = task.completed_at.split('T')[0]
-                if (completedDate < timeRangeStart || completedDate > timeRangeEnd) return false
-            }
-            return true
-        } else {
-            if (task.status === 'done' && task.completed_at) {
-                const completedDate = task.completed_at.split('T')[0]
-                return completedDate >= weekStartStr && completedDate <= weekEndStr
-            }
-            return task.status === 'not_done'
+        if (task.status === 'done' && task.completed_at) {
+            const completedDate = task.completed_at.split('T')[0]
+            return completedDate >= dateRangeStartStr && completedDate <= dateRangeEndStr
         }
+        return task.status === 'not_done'
     })
 
     const doneTasks = displayTasks.filter(t => t.status === 'done')
@@ -210,15 +209,49 @@ export default function DashboardPage() {
     const totalVideos = doneTasks.reduce((sum, t) => sum + (t.video_count || 0), 0)
     const activeAssignees = new Set(doneTasks.map(t => t.assignee_name).filter(Boolean)).size
     const avgPointsPerVideo = totalVideos > 0 ? totalPoints / totalVideos : 0
-    const teamTargetPoints = targets.reduce((sum, t) => sum + t.target_points, 0)
+
+    // Calculate target for current week based on Settings defaults
+    // For member: only their target (160), for admin: total team target
+    const DEFAULT_TARGET_PER_MEMBER = 160
+    const uniqueAssigneesInData = [...new Set(allTasks.map(t => t.assignee_name).filter(Boolean))]
+    const numMembers = user?.role === 'member' ? 1 : uniqueAssigneesInData.length
+    const teamTargetPoints = numMembers * DEFAULT_TARGET_PER_MEMBER
     const teamAchievedPercent = teamTargetPoints > 0 ? (totalPoints / teamTargetPoints) * 100 : 0
+
+    // Calculate weeks achieved (weeks where team total points >= team target for that week)
+    // Group done tasks by week and count how many weeks met target
+    const pointsByWeek: Record<number, number> = {}
+    doneTasks.forEach(task => {
+        if (task.completed_at) {
+            const completedDate = new Date(task.completed_at)
+            const weekNum = getWeek(completedDate, { weekStartsOn: 1 })
+            pointsByWeek[weekNum] = (pointsByWeek[weekNum] || 0) + (task.points || 0)
+        }
+    })
+    // Target per week = 160 per member (use teamTargetPoints which is already calculated correctly)
+    const weeksAchieved = Object.values(pointsByWeek).filter(weekPoints => weekPoints >= teamTargetPoints).length
+    console.log('Points by week:', pointsByWeek, 'Target per week:', teamTargetPoints, 'Weeks achieved:', weeksAchieved)
 
     const assigneeStats = assignees.map(name => {
         const userTasks = doneTasks.filter(t => t.assignee_name === name)
-        const userTarget = targets.find(t => t.user_gid === name)
+        // Sum targets for this user across all selected weeks
+        const userTargetPoints = targets
+            .filter(t => t.user_gid === name)
+            .reduce((sum, t) => sum + t.target_points, 0)
+
         const points = userTasks.reduce((sum, t) => sum + (t.points || 0), 0)
         const videos = userTasks.reduce((sum, t) => sum + (t.video_count || 0), 0)
-        const target = userTarget?.target_points || 0
+
+        // Calculate weeks achieved for this member (weeks where they got >= 160 points)
+        const memberPointsByWeek: Record<number, number> = {}
+        userTasks.forEach(task => {
+            if (task.completed_at) {
+                const completedDate = new Date(task.completed_at)
+                const weekNum = getWeek(completedDate, { weekStartsOn: 1 })
+                memberPointsByWeek[weekNum] = (memberPointsByWeek[weekNum] || 0) + (task.points || 0)
+            }
+        })
+        const memberWeeksAchieved = Object.values(memberPointsByWeek).filter(pts => pts >= DEFAULT_TARGET_PER_MEMBER).length
 
         const videoTypeMix: Record<string, number> = {}
         userTasks.forEach(t => {
@@ -231,11 +264,12 @@ export default function DashboardPage() {
             name,
             points,
             videos,
-            target,
-            percent: target > 0 ? (points / target) * 100 : 0,
+            target: userTargetPoints,
+            percent: userTargetPoints > 0 ? (points / userTargetPoints) * 100 : 0,
+            weeksAchieved: memberWeeksAchieved,
             ...videoTypeMix,
         }
-    }).filter(a => a.points > 0 || a.videos > 0)
+    }).filter(a => a.points > 0 || a.videos > 0 || a.target > 0)
 
     const dailyData = Array.from({ length: 7 }, (_, i) => {
         const date = addDays(weekStart, i)
@@ -253,12 +287,12 @@ export default function DashboardPage() {
         }
     })
 
-    const leaderboardData = assigneeStats.map((a, index) => ({
+    const leaderboardData = assigneeStats.map((a) => ({
         name: a.name,
         points: a.points,
-        target: a.target || 160,
-        percent: a.target > 0 ? (a.points / a.target) * 100 : (a.points / 160) * 100,
-        rank: index + 1,
+        target: a.target,
+        weeksAchieved: a.weeksAchieved,
+        totalWeeks: 24, // Total weeks in 6 months
     }))
 
     if (loading) {
@@ -277,11 +311,15 @@ export default function DashboardPage() {
     // Role-based filtering: only filter if user is explicitly a 'member' with a valid fullName
     // If profile is not set or fullName is empty, show all data (manager behavior)
     const isManager = !user?.role || user?.role === 'admin' || user?.role === 'lead' || !user?.fullName
+
+    // For TaskTable: filter by user if member
     const filteredTasks = isManager ? displayTasks : displayTasks.filter(t => t.assignee_name === user?.fullName)
     const filteredDoneTasks = filteredTasks.filter(t => t.status === 'done')
     const filteredNotDoneTasks = filteredTasks.filter(t => t.status === 'not_done')
-    const filteredAssigneeStats = isManager ? assigneeStats : assigneeStats.filter(a => a.name === user?.fullName)
-    const filteredLeaderboardData = isManager ? leaderboardData : leaderboardData.filter(l => l.name === user?.fullName)
+
+    // For Leaderboard and DueDateStats: always show all team data
+    const filteredLeaderboardData = leaderboardData // Always show full team
+    const filteredAssigneeStats = assigneeStats // Always show full team (not used anymore)
 
     return (
         <DashboardLayout userRole={user?.role} userName={user?.email}>
@@ -291,7 +329,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-xl font-bold text-white">Overview</h2>
-                            <p className="text-sm text-slate-400">Week {format(weekStart, 'w')} • {format(weekStart, 'MMM d')} - {format(weekEndDate, 'MMM d, yyyy')}</p>
+                            <p className="text-sm text-slate-400">{format(dateRange.start, 'MMM d')} - {format(dateRange.end, 'MMM d, yyyy')}</p>
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="text-right hidden sm:block">
@@ -314,10 +352,7 @@ export default function DashboardPage() {
                     {/* Filter Bar */}
                     <FilterBar
                         weekStart={weekStart}
-                        onWeekChange={(d) => {
-                            setWeekStart(d)
-                            setFilterMode('week')
-                        }}
+                        onWeekChange={setWeekStart}
                         assignees={assignees}
                         selectedAssignees={selectedAssignees}
                         onAssigneesChange={setSelectedAssignees}
@@ -329,14 +364,15 @@ export default function DashboardPage() {
                         onSync={handleSync}
                         syncing={syncing}
                         lastSync={lastSync}
-                        timeRange={timeRange}
-                        onTimeRangeChange={(r) => {
-                            setTimeRange(r)
-                            setFilterMode('range')
-                        }}
+                        dateRange={dateRange}
+                        onDateRangeChange={setDateRange}
+                        selectedPreset={selectedPreset}
+                        onPresetChange={setSelectedPreset}
+                        selectedWeeks={selectedWeeks}
+                        onWeeksChange={setSelectedWeeks}
                     />
 
-                    {/* KPI Cards */}
+                    {/* Row 1: KPI Cards */}
                     <KPICards
                         totalPoints={totalPoints}
                         totalVideos={totalVideos}
@@ -346,29 +382,20 @@ export default function DashboardPage() {
                         avgPointsPerVideo={avgPointsPerVideo}
                         teamTargetPoints={teamTargetPoints}
                         teamAchievedPercent={teamAchievedPercent}
+                        weeksAchieved={weeksAchieved}
+                        totalWeeks={24}
                     />
 
-                    {/* Due Date Stats */}
-                    <DueDateStats tasks={displayTasks} />
-
-                    {/* Row 1: Points & Videos by Assignee */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                        <PointsChart data={filteredAssigneeStats} />
-                        <VideosChart data={filteredAssigneeStats} />
+                    {/* Row 2: Charts (smaller) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                        <VideoTypeMixChart data={doneTasks} />
+                        <DailyPointsChart tasks={doneTasks} />
                     </div>
 
-                    {/* Row 2: Video Type Mix, Weekly Trend */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                        <VideoTypeMixChart data={filteredAssigneeStats as any} />
-                        <WeeklyTrendChart data={dailyData} />
-                    </div>
-
-                    {/* Row 3: Leaderboard, Status Donut */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                        <div className="lg:col-span-2">
-                            <Leaderboard data={filteredLeaderboardData} />
-                        </div>
-                        <StatusDonut done={filteredDoneTasks.length} notDone={filteredNotDoneTasks.length} />
+                    {/* Row 3: Leaderboard + Due Date Stats side by side */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                        <Leaderboard data={filteredLeaderboardData} />
+                        <DueDateStats tasks={displayTasks} />
                     </div>
 
                     {/* Row 4: Task Tables */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ChevronDown, ChevronUp, ChevronRight, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react'
 
@@ -200,7 +200,7 @@ export default function TaskTable({ doneTasks, notDoneTasks, showOverdueOnly = f
                             const asanaUrl = getAsanaUrl(task.asana_id)
 
                             return (
-                                <>
+                                <React.Fragment key={task.id}>
                                     <tr key={task.id} className="hover:bg-slate-700/20 transition-colors">
                                         <td className="px-2 py-3">
                                             <button
@@ -232,7 +232,7 @@ export default function TaskTable({ doneTasks, notDoneTasks, showOverdueOnly = f
                                             <span className="text-sm text-slate-300">{task.video_count}</span>
                                         </td>
                                         <td className="px-4 py-3 text-center">
-                                            <span className="text-sm font-medium text-purple-400">{task.points}</span>
+                                            <span className="text-sm font-medium text-purple-400">{(task.points || 0) % 1 === 0 ? (task.points || 0) : (task.points || 0).toFixed(1)}</span>
                                         </td>
                                         <td className="px-4 py-3">
                                             {activeTab === 'done' && task.completed_at ? (
@@ -293,7 +293,7 @@ export default function TaskTable({ doneTasks, notDoneTasks, showOverdueOnly = f
                                             </td>
                                         </tr>
                                     )}
-                                </>
+                                </React.Fragment>
                             )
                         })}
                         {currentTasks.length === 0 && (

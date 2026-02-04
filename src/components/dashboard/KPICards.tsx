@@ -1,6 +1,6 @@
 'use client'
 
-import { TrendingUp, Video, CheckCircle, XCircle, Users, Target, Zap, BarChart3 } from 'lucide-react'
+import { TrendingUp, Video, CheckCircle, XCircle, Trophy } from 'lucide-react'
 
 interface KPICardsProps {
     totalPoints: number
@@ -11,6 +11,8 @@ interface KPICardsProps {
     avgPointsPerVideo: number
     teamTargetPoints: number
     teamAchievedPercent: number
+    weeksAchieved?: number
+    totalWeeks?: number
 }
 
 export default function KPICards({
@@ -18,20 +20,11 @@ export default function KPICards({
     totalVideos,
     doneTasks,
     notDoneTasks,
-    activeAssignees,
-    avgPointsPerVideo,
     teamTargetPoints,
-    teamAchievedPercent,
+    weeksAchieved = 0,
+    totalWeeks = 24,
 }: KPICardsProps) {
     const cards = [
-        {
-            title: 'Total Points',
-            value: totalPoints.toLocaleString(),
-            icon: TrendingUp,
-            color: 'from-violet-500 to-purple-600',
-            bgColor: 'bg-violet-500/10',
-            textColor: 'text-violet-400',
-        },
         {
             title: 'Total Videos',
             value: totalVideos.toLocaleString(),
@@ -56,26 +49,32 @@ export default function KPICards({
             bgColor: 'bg-amber-500/10',
             textColor: 'text-amber-400',
         },
-        {
-            title: 'Active Members',
-            value: activeAssignees.toLocaleString(),
-            icon: Users,
-            color: 'from-pink-500 to-rose-600',
-            bgColor: 'bg-pink-500/10',
-            textColor: 'text-pink-400',
-        },
-        {
-            title: 'Avg Points/Video',
-            value: avgPointsPerVideo.toFixed(1),
-            icon: Zap,
-            color: 'from-yellow-500 to-amber-600',
-            bgColor: 'bg-yellow-500/10',
-            textColor: 'text-yellow-400',
-        },
     ]
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6 stagger-children">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 stagger-children">
+            {/* Total Points Card - 2 lines: Actual + Target */}
+            <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 hover:border-slate-600/50 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 cursor-default group">
+                <div className="inline-flex p-2 rounded-xl bg-violet-500/10 mb-3 group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="w-5 h-5 text-violet-400" />
+                </div>
+                <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-2xl font-bold text-white">
+                            {totalPoints % 1 === 0 ? totalPoints : totalPoints.toFixed(1)}
+                        </p>
+                        <span className="text-xs text-emerald-400">thực tế</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-lg font-semibold text-slate-400">
+                            {teamTargetPoints}
+                        </p>
+                        <span className="text-xs text-purple-400">mục tiêu</span>
+                    </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Total Points</p>
+            </div>
+
             {cards.map((card) => (
                 <div
                     key={card.title}
@@ -89,20 +88,30 @@ export default function KPICards({
                 </div>
             ))}
 
-            {/* Target Completion - Special Card */}
+            {/* Weeks Achieved Card - shows how many weeks reached target */}
             <div className="bg-gradient-to-br from-violet-600/20 to-purple-600/20 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-4 hover:border-purple-400/50 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 group">
                 <div className="flex items-center justify-between mb-3">
                     <div className="inline-flex p-2 rounded-xl bg-purple-500/20 group-hover:scale-110 group-hover:bg-purple-500/30 transition-all duration-300">
-                        <Target className="w-5 h-5 text-purple-400" />
+                        <Trophy className="w-5 h-5 text-purple-400" />
                     </div>
-                    <span className="text-xs font-medium text-purple-300 bg-purple-500/10 px-2 py-1 rounded-full">{teamTargetPoints} target</span>
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${weeksAchieved > 0
+                            ? 'text-emerald-300 bg-emerald-500/20'
+                            : 'text-slate-300 bg-slate-500/20'
+                        }`}>
+                        {weeksAchieved > 0 ? '🎉 Đạt!' : 'Chưa đạt'}
+                    </span>
                 </div>
-                <p className="text-2xl font-bold text-white mb-1">{teamAchievedPercent.toFixed(0)}%</p>
-                <p className="text-xs text-slate-400">Target Completion</p>
+                <p className="text-2xl font-bold text-white mb-1">
+                    {weeksAchieved}/{totalWeeks}
+                </p>
+                <p className="text-xs text-slate-400">Tuần đạt target</p>
                 <div className="mt-2 h-2 bg-slate-700 rounded-full overflow-hidden">
                     <div
-                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-1000 ease-out animate-progress"
-                        style={{ width: `${Math.min(100, teamAchievedPercent)}%` }}
+                        className={`h-full rounded-full transition-all duration-1000 ease-out ${weeksAchieved > 0
+                                ? 'bg-gradient-to-r from-emerald-500 to-green-500'
+                                : 'bg-slate-600'
+                            }`}
+                        style={{ width: `${(weeksAchieved / totalWeeks) * 100}%` }}
                     />
                 </div>
             </div>
