@@ -4,14 +4,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { LayoutTemplate, Target, Users, Calendar } from 'lucide-react'
+import { useUser } from '@/contexts/UserContext'
 
-interface SidebarProps {
-    userRole?: string
-    userName?: string
-}
-
-export default function Sidebar({ userRole = 'member' }: SidebarProps) {
+export default function Sidebar() {
     const pathname = usePathname()
+    const { user } = useUser()
+    const userRole = user?.role || 'member'
 
     // Menu items with role-based visibility
     const allMenuItems = [
@@ -31,13 +29,13 @@ export default function Sidebar({ userRole = 'member' }: SidebarProps) {
             title: 'Mục tiêu hướng tới',
             path: '/settings',
             icon: Target,
-            roles: ['admin', 'lead'], // Only admin/lead can access settings
+            roles: ['admin', 'lead'],
         },
         {
             title: 'Quản lý Users',
             path: '/users',
             icon: Users,
-            roles: ['admin', 'lead'], // Only admin/lead can manage users
+            roles: ['admin', 'lead'],
         }
     ]
 
@@ -47,7 +45,7 @@ export default function Sidebar({ userRole = 'member' }: SidebarProps) {
     )
 
     return (
-        <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 transition-all duration-300">
+        <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0">
             {/* Logo Area */}
             <div className="p-6 border-b border-slate-800">
                 <div className="flex items-center gap-3">
@@ -77,7 +75,7 @@ export default function Sidebar({ userRole = 'member' }: SidebarProps) {
                         <Link
                             key={item.path}
                             href={item.path}
-                            className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${isActive
+                            className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-colors group ${isActive
                                 ? 'bg-purple-600 shadow-lg shadow-purple-900/50 text-white'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                 }`}
@@ -92,7 +90,7 @@ export default function Sidebar({ userRole = 'member' }: SidebarProps) {
                 })}
             </nav>
 
-            {/* Version - minimal footer */}
+            {/* Version */}
             <div className="px-4 pb-4">
                 <div className="text-xs text-slate-600 text-center">
                     v1.1.0

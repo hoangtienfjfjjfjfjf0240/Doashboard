@@ -148,7 +148,7 @@ export default function DayOffsPage() {
     }, 0)
 
     return (
-        <DashboardLayout userRole={user?.role} userName={user?.email}>
+        <DashboardLayout>
             <div className="min-h-screen bg-slate-950 p-6">
                 <div className="max-w-4xl mx-auto">
                     {/* Header */}
