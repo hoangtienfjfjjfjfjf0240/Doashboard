@@ -21,35 +21,38 @@ const TOOL_COLORS: Record<string, string> = {
     'Sora': 'bg-orange-500',
 }
 
+const TOOL_BAR_COLORS: Record<string, string> = {
+    'Translate Tool': 'from-red-500 to-red-600',
+    'Media tool': 'from-yellow-500 to-yellow-600',
+    'Voice Clone': 'from-green-500 to-green-600',
+    'Flow veo3': 'from-blue-500 to-blue-600',
+    'Sora': 'from-orange-500 to-orange-600',
+}
+
 export default function CTSTChart({ tasks }: CTSTChartProps) {
     const stats = useMemo(() => {
-        // Count CTST usage per user
-        const userStats: Record<string, Record<string, number>> = {}
         const toolTotals: Record<string, number> = {}
+        let totalCTST = 0
 
         tasks.forEach(task => {
-            if (!task.ctst || !task.assignee_name || task.status !== 'done') return
-
-            if (!userStats[task.assignee_name]) {
-                userStats[task.assignee_name] = {}
-            }
-            userStats[task.assignee_name][task.ctst] = (userStats[task.assignee_name][task.ctst] || 0) + 1
+            if (!task.ctst || task.status !== 'done') return
             toolTotals[task.ctst] = (toolTotals[task.ctst] || 0) + 1
+            totalCTST++
         })
 
-        // Convert to array and sort by total usage
-        const users = Object.entries(userStats).map(([name, tools]) => ({
-            name,
-            tools,
-            total: Object.values(tools).reduce((a, b) => a + b, 0)
-        })).sort((a, b) => b.total - a.total)
+        // Sort by count descending
+        const toolsWithPercent = Object.entries(toolTotals)
+            .map(([name, count]) => ({
+                name,
+                count,
+                percent: totalCTST > 0 ? (count / totalCTST) * 100 : 0
+            }))
+            .sort((a, b) => b.count - a.count)
 
-        const allTools = Object.keys(toolTotals).sort((a, b) => toolTotals[b] - toolTotals[a])
-
-        return { users, toolTotals, allTools }
+        return { toolsWithPercent, totalCTST }
     }, [tasks])
 
-    if (stats.allTools.length === 0) {
+    if (stats.toolsWithPercent.length === 0) {
         return (
             <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -61,7 +64,7 @@ export default function CTSTChart({ tasks }: CTSTChartProps) {
         )
     }
 
-    const maxTotal = Math.max(...stats.users.map(u => u.total), 1)
+    const maxPercent = Math.max(...stats.toolsWithPercent.map(t => t.percent), 1)
 
     return (
         <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 hover:border-slate-600/50 transition-all duration-300">
@@ -71,43 +74,34 @@ export default function CTSTChart({ tasks }: CTSTChartProps) {
                     <h3 className="text-base font-semibold text-white">Cải Tiến Sáng Tạo (CTST)</h3>
                 </div>
                 <span className="text-xs text-slate-500">
-                    {Object.values(stats.toolTotals).reduce((a, b) => a + b, 0)} tasks
+                    {stats.totalCTST} tasks
                 </span>
             </div>
 
-            {/* Tool Legend */}
-            <div className="flex flex-wrap gap-2 mb-4">
-                {stats.allTools.map(tool => (
-                    <div key={tool} className="flex items-center gap-1.5 text-xs">
-                        <div className={`w-2.5 h-2.5 rounded-sm ${TOOL_COLORS[tool] || 'bg-slate-500'}`} />
-                        <span className="text-slate-400">{tool}</span>
-                        <span className="text-slate-600">({stats.toolTotals[tool]})</span>
-                    </div>
-                ))}
-            </div>
-
-            {/* User bars */}
+            {/* Bar chart showing percentage for each tool */}
             <div className="space-y-3">
-                {stats.users.slice(0, 8).map((user, idx) => (
-                    <div key={user.name}>
+                {stats.toolsWithPercent.map((tool) => (
+                    <div key={tool.name}>
                         <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-slate-300 truncate max-w-[150px]">{user.name}</span>
-                            <span className="text-slate-500 text-xs">{user.total}</span>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-sm ${TOOL_COLORS[tool.name] || 'bg-slate-500'}`} />
+                                <span className="text-slate-300">{tool.name}</span>
+                            </div>
+                            <span className="text-slate-400 font-medium">
+                                {tool.percent.toFixed(1)}% <span className="text-slate-600">({tool.count})</span>
+                            </span>
                         </div>
-                        <div className="h-5 bg-slate-700/50 rounded-lg overflow-hidden flex">
-                            {stats.allTools.map(tool => {
-                                const count = user.tools[tool] || 0
-                                if (count === 0) return null
-                                const width = (count / maxTotal) * 100
-                                return (
-                                    <div
-                                        key={tool}
-                                        className={`h-full ${TOOL_COLORS[tool] || 'bg-slate-500'} transition-all duration-500`}
-                                        style={{ width: `${width}%` }}
-                                        title={`${tool}: ${count}`}
-                                    />
-                                )
-                            })}
+                        <div className="h-6 bg-slate-700/50 rounded-lg overflow-hidden">
+                            <div
+                                className={`h-full bg-gradient-to-r ${TOOL_BAR_COLORS[tool.name] || 'from-slate-500 to-slate-600'} transition-all duration-500 rounded-lg flex items-center justify-end pr-2`}
+                                style={{ width: `${(tool.percent / maxPercent) * 100}%` }}
+                            >
+                                {tool.percent >= 15 && (
+                                    <span className="text-xs text-white font-medium">
+                                        {tool.percent.toFixed(0)}%
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}

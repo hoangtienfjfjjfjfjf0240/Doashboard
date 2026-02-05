@@ -58,7 +58,7 @@ export default function UsersPage() {
             setCanManage(isManager || hasAdminRole)
             setCurrentUser({
                 email: user.email || '',
-                role: profile?.role || 'member'
+                role: isManager ? 'admin' : (profile?.role || 'member')
             })
 
             // Load all users

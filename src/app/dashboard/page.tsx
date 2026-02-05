@@ -75,9 +75,11 @@ export default function DashboardPage() {
 
     // Get current user
     useEffect(() => {
+        const MANAGER_EMAIL = 'hoangtien020120@gmail.com'
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
+                const isManager = user.email?.toLowerCase() === MANAGER_EMAIL.toLowerCase()
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('role, full_name')
@@ -86,7 +88,7 @@ export default function DashboardPage() {
 
                 setUser({
                     email: profile?.full_name || user.email || '',
-                    role: profile?.role || 'member',
+                    role: isManager ? 'admin' : (profile?.role || 'member'),
                     fullName: profile?.full_name || '',
                 })
             }
@@ -212,12 +214,18 @@ export default function DashboardPage() {
     const activeAssignees = new Set(doneTasks.map(t => t.assignee_name).filter(Boolean)).size
     const avgPointsPerVideo = totalVideos > 0 ? totalPoints / totalVideos : 0
 
-    // Calculate target for current week based on Settings defaults
-    // For member: only their target (160), for admin: total team target
-    const DEFAULT_TARGET_PER_MEMBER = 160
+    // Calculate target for selected date range
+    // Target = 160 per member per week
+    const DEFAULT_TARGET_PER_MEMBER_PER_WEEK = 160
     const uniqueAssigneesInData = [...new Set(allTasks.map(t => t.assignee_name).filter(Boolean))]
     const numMembers = user?.role === 'member' ? 1 : uniqueAssigneesInData.length
-    const teamTargetPoints = numMembers * DEFAULT_TARGET_PER_MEMBER
+
+    // Calculate number of weeks in selected date range
+    const daysDiff = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const numWeeks = Math.max(1, Math.ceil(daysDiff / 7))
+
+    // Target = members * weeks * target per member per week
+    const teamTargetPoints = numMembers * DEFAULT_TARGET_PER_MEMBER_PER_WEEK * numWeeks
     const teamAchievedPercent = teamTargetPoints > 0 ? (totalPoints / teamTargetPoints) * 100 : 0
 
     // Calculate weeks achieved (weeks where team total points >= team target for that week)
@@ -253,7 +261,7 @@ export default function DashboardPage() {
                 memberPointsByWeek[weekNum] = (memberPointsByWeek[weekNum] || 0) + (task.points || 0)
             }
         })
-        const memberWeeksAchieved = Object.values(memberPointsByWeek).filter(pts => pts >= DEFAULT_TARGET_PER_MEMBER).length
+        const memberWeeksAchieved = Object.values(memberPointsByWeek).filter(pts => pts >= DEFAULT_TARGET_PER_MEMBER_PER_WEEK).length
 
         const videoTypeMix: Record<string, number> = {}
         userTasks.forEach(t => {
