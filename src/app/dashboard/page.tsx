@@ -15,6 +15,7 @@ import {
     TaskTable,
     DueDateStats,
     DailyPointsChart,
+    CTSTChart,
 } from '@/components/dashboard'
 
 interface Task {
@@ -30,6 +31,7 @@ interface Task {
     completed_at: string | null
     status: 'done' | 'not_done'
     tags: string[]
+    ctst: string | null
 }
 
 interface Target {
@@ -392,10 +394,11 @@ export default function DashboardPage() {
                         <DailyPointsChart tasks={doneTasks} />
                     </div>
 
-                    {/* Row 3: Leaderboard + Due Date Stats side by side */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                    {/* Row 3: Leaderboard + Due Date Stats + CTST */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
                         <Leaderboard data={filteredLeaderboardData} />
                         <DueDateStats tasks={displayTasks} />
+                        <CTSTChart tasks={displayTasks} />
                     </div>
 
                     {/* Row 4: Task Tables */}

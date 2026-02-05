@@ -109,6 +109,15 @@ export async function POST() {
             )
             const videoCount = Math.max(1, quantityField?.number_value || 1)
 
+            // Find CTST (Creative Tool)
+            const ctstField = task.custom_fields?.find(
+                f => f.name.toLowerCase() === 'ctst' ||
+                    f.name.toLowerCase().includes('creative tool')
+            )
+            const ctst = ctstField?.enum_value?.name ||
+                ctstField?.display_value ||
+                null
+
             // Calculate points
             const points = videoType ? (POINT_CONFIG[videoType] || 0) * videoCount : 0
 
@@ -124,6 +133,7 @@ export async function POST() {
                 video_type: videoType,
                 video_count: videoCount,
                 points: points,
+                ctst: ctst,
                 tags: task.tags?.map(t => t.name) || [],
                 raw_data: task,
                 updated_at: new Date().toISOString(),
