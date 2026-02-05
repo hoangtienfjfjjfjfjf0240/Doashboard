@@ -47,17 +47,27 @@ export default function DayOffsPage() {
     }, [currentMonth, user])
 
     const fetchUser = async () => {
+        const MANAGER_EMAIL = 'hoangtien020120@gmail.com'
         const { data: { user: authUser } } = await supabase.auth.getUser()
         if (authUser) {
+            const isManager = authUser.email?.toLowerCase() === MANAGER_EMAIL.toLowerCase()
             const { data } = await supabase
-                .from('users')
+                .from('profiles')
                 .select('*')
-                .eq('email', authUser.email)
+                .eq('id', authUser.id)
                 .single()
             if (data) {
-                setUser(data)
+                setUser({
+                    email: authUser.email || '',
+                    full_name: data.full_name || authUser.email || '',
+                    role: isManager ? 'admin' : (data.role || 'member')
+                })
             } else {
-                setUser({ email: authUser.email || '', full_name: authUser.email || '', role: 'member' })
+                setUser({
+                    email: authUser.email || '',
+                    full_name: authUser.email || '',
+                    role: isManager ? 'admin' : 'member'
+                })
             }
         }
         setLoading(false)

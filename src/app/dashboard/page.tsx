@@ -215,17 +215,17 @@ export default function DashboardPage() {
     const avgPointsPerVideo = totalVideos > 0 ? totalPoints / totalVideos : 0
 
     // Calculate target for selected date range
-    // Target = 160 per member per week
+    // Target = 160 per member per week (for the current user or selected members)
     const DEFAULT_TARGET_PER_MEMBER_PER_WEEK = 160
-    const uniqueAssigneesInData = [...new Set(allTasks.map(t => t.assignee_name).filter(Boolean))]
-    const numMembers = user?.role === 'member' ? 1 : uniqueAssigneesInData.length
 
     // Calculate number of weeks in selected date range
     const daysDiff = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1
     const numWeeks = Math.max(1, Math.ceil(daysDiff / 7))
 
-    // Target = members * weeks * target per member per week
-    const teamTargetPoints = numMembers * DEFAULT_TARGET_PER_MEMBER_PER_WEEK * numWeeks
+    // Target = 160 per week (per member view, not team total)
+    // If member role: show their own target
+    // If admin: show per-member target (can view individual stats in table)
+    const teamTargetPoints = DEFAULT_TARGET_PER_MEMBER_PER_WEEK * numWeeks
     const teamAchievedPercent = teamTargetPoints > 0 ? (totalPoints / teamTargetPoints) * 100 : 0
 
     // Calculate weeks achieved (weeks where team total points >= team target for that week)
