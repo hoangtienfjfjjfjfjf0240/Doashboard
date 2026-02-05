@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutTemplate, Target, Zap, Users, Calendar } from 'lucide-react'
+import { LayoutTemplate, Target, Users, Calendar } from 'lucide-react'
 
 interface SidebarProps {
     userRole?: string
@@ -12,38 +13,51 @@ interface SidebarProps {
 export default function Sidebar({ userRole = 'member' }: SidebarProps) {
     const pathname = usePathname()
 
-    // Show Users menu for all for now - later can restrict to admin/lead only
-    const menuItems = [
+    // Menu items with role-based visibility
+    const allMenuItems = [
         {
             title: 'Dashboard Creative',
             path: '/dashboard',
             icon: LayoutTemplate,
+            roles: ['member', 'admin', 'lead', 'editor'],
         },
         {
             title: 'Ngày Nghỉ',
             path: '/day-offs',
             icon: Calendar,
+            roles: ['member', 'admin', 'lead', 'editor'],
         },
         {
             title: 'Mục tiêu hướng tới',
             path: '/settings',
             icon: Target,
+            roles: ['admin', 'lead'], // Only admin/lead can access settings
         },
         {
             title: 'Quản lý Users',
             path: '/users',
             icon: Users,
+            roles: ['admin', 'lead'], // Only admin/lead can manage users
         }
     ]
+
+    // Filter menu items based on user role
+    const menuItems = allMenuItems.filter(item =>
+        item.roles.includes(userRole) || userRole === 'admin'
+    )
 
     return (
         <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 transition-all duration-300">
             {/* Logo Area */}
             <div className="p-6 border-b border-slate-800">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl">
-                        <Zap className="w-6 h-6 text-white" />
-                    </div>
+                    <Image
+                        src="/ikame-logo.png"
+                        alt="iKame Logo"
+                        width={44}
+                        height={44}
+                        className="rounded-xl"
+                    />
                     <div>
                         <h1 className="text-lg font-bold text-white leading-none">Creative</h1>
                         <span className="text-xs text-purple-400 font-medium">Dashboard</span>
